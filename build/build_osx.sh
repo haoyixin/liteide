@@ -30,7 +30,7 @@ fi
 
 echo make liteide ...
 echo .
-make
+make -j `sysctl -n hw.ncpu`
 
 if [ $? -ge 1 ]; then
 	echo 'error, make fail'
