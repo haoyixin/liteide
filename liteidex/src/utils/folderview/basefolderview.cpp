@@ -80,8 +80,20 @@ BaseFolderView::BaseFolderView(LiteApi::IApplication *app, QWidget *parent) :
     m_renameFolderAct = new QAction(tr("Rename Folder..."),this);
     m_removeFolderAct = new QAction(tr("Delete Folder"),this);
 
+#if defined(Q_OS_WIN)
+    m_openExplorerAct = new QAction(tr("Show in Explorer"),this);
+#elif defined(Q_OS_MAC)
+    m_openExplorerAct = new QAction(tr("Show in Finder"),this);
+#else
+    m_openExplorerAct = new QAction(tr("Show Containing Folder"),this);
+#endif
+
+#ifdef Q_OS_WIN
+    m_openShellAct = new QAction(tr("Open Command Prompt Here"),this);
+#else
     m_openShellAct = new QAction(tr("Open Terminal Here"),this);
-    m_openExplorerAct = new QAction(tr("Open Explorer Here"),this);
+#endif
+
 
     m_viewGodocAct = new QAction(tr("Use godoc View"),this);
 
@@ -336,42 +348,5 @@ void BaseFolderView::closeAllFolders()
 
 void BaseFolderView::openShell()
 {
-    QDir dir = contextDir();
-    QProcessEnvironment env = LiteApi::getCurrentEnvironment(m_liteApp);
-    QString shell = env.value("LITEIDE_SHELL");
-    if (!shell.isEmpty()) {
-        foreach (QString info, shell.split(";",QString::SkipEmptyParts)) {
-            QStringList ar = info.split(" ",QString::SkipEmptyParts);
-            if (ar.size() >= 1) {
-                QString cmd = FileUtil::lookPath(ar[0],LiteApi::getCurrentEnvironment(m_liteApp),false);
-                if (!cmd.isEmpty()) {
-                    QString path = dir.path();
-                    ar.pop_front();
-#ifdef Q_OS_MAC
-                    ar.push_back(path);
-#endif
-#ifdef Q_OS_WIN
-    if (path.length() == 2 && path.right(1) == ":") {
-        path += "/";
-    }
-#endif
-                    QProcess::startDetached(cmd,ar,path);
-                    return;
-                }
-            }
-        }
-        return;
-    }
-    QString cmd = env.value("LITEIDE_TERM");
-    QStringList args = env.value("LITEIDE_TERMARGS").split(" ",QString::SkipEmptyParts);
-    QString path = dir.path();
-#ifdef Q_OS_MAC
-    args.append(path);
-#endif
-#ifdef Q_OS_WIN
-    if (path.length() == 2 && path.right(1) == ":") {
-        path += "/";
-    }
-#endif
-    QProcess::startDetached(cmd,args,path);
+    FileUtil::openInShell(m_liteApp, contextDir().path());
 }

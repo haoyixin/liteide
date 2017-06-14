@@ -84,6 +84,8 @@ bool EditorManager::initWithApp(IApplication *app)
     m_currentNavigationHistoryPosition = 0;
     m_colorStyleScheme = new ColorStyleScheme(this);
 
+    m_maxEditorCount = m_liteApp->settings()->value(LITEAPP_MAXEDITORCOUNT,64).toInt();
+
     applyOption(OPTION_LITEAPP);
 
     m_widget = new QWidget;
@@ -143,7 +145,21 @@ bool EditorManager::initWithApp(IApplication *app)
     QAction *closeSameFolderFiles = new QAction(tr("Close Files in Same Folder"),this);
     QAction *closeOtherFolderFiles = new QAction(tr("Close Files in Other Folders"),this);
     QAction *copyPathToClipboard = new QAction(tr("Copy Full Path to Clipboard"),this);
-    QAction *showInExplorer = new QAction(tr("Show in Explorer"),this);
+
+#if defined(Q_OS_WIN)
+    QAction *showInExplorer = new QAction(tr("Show in Explorer"),this);    
+#elif defined(Q_OS_MAC)
+    QAction *showInExplorer = new QAction(tr("Show in Finder"),this);
+#else
+    QAction *showInExplorer = new QAction(tr("Show Containing Folder"),this);
+#endif
+
+#ifdef Q_OS_WIN
+    QAction *openInShell = new QAction(tr("Open Command Prompt Here"),this);
+#else
+    QAction *openInShell = new QAction(tr("Open Terminal Here"),this);
+#endif
+
 
     QAction *moveToAct = new QAction(tr("Move to New Window"),this);
 
@@ -158,6 +174,7 @@ bool EditorManager::initWithApp(IApplication *app)
     m_tabContextFileMenu->addSeparator();
     m_tabContextFileMenu->addAction(copyPathToClipboard);
     m_tabContextFileMenu->addAction(showInExplorer);
+    m_tabContextFileMenu->addAction(openInShell);
     m_tabContextFileMenu->addSeparator();
     m_tabContextFileMenu->addAction(moveToAct);
 
@@ -176,6 +193,7 @@ bool EditorManager::initWithApp(IApplication *app)
     connect(closeOtherFolderFiles,SIGNAL(triggered()),this,SLOT(tabContextCloseOtherFolderFiles()));
     connect(copyPathToClipboard,SIGNAL(triggered()),this,SLOT(tabContextCopyPathToClipboard()));
     connect(showInExplorer,SIGNAL(triggered()),this,SLOT(tabContextShowInExplorer()));
+    connect(openInShell,SIGNAL(triggered()),this,SLOT(tabContextOpenInShell()));
     connect(moveToAct,SIGNAL(triggered()),this,SLOT(moveToNewWindow()));
     connect(qApp,SIGNAL(focusChanged(QWidget*,QWidget*)),this,SLOT(focusChanged(QWidget*,QWidget*)));
 
@@ -653,6 +671,9 @@ IEditor *EditorManager::openEditor(const QString &fileName, const QString &mimeT
         if (textEditor) {
             textEditor->restoreState(m_liteApp->settings()->value(QString("state_%1").arg(editor->filePath())).toByteArray());
         }
+        while (m_editorTabWidget->tabBar()->count() > m_maxEditorCount) {
+            this->closeEditorForTab(0);
+        }
     }
     return editor;
 }
@@ -917,6 +938,15 @@ void EditorManager::tabContextShowInExplorer()
     FileUtil::openInExplorer(filePath);
 }
 
+void EditorManager::tabContextOpenInShell()
+{
+    QString filePath = tabContextFilePath();
+    if (filePath.isEmpty()) {
+        return;
+    }
+    FileUtil::openInShell(m_liteApp,filePath);
+}
+
 void EditorManager::tabContextCloseOtherFolderFiles()
 {
     QString filePath = tabContextFilePath();
@@ -1071,14 +1101,23 @@ void EditorManager::applyOption(QString id)
     if (m_autoIdleSaveDocumentsTime < 1) {
         m_autoIdleSaveDocumentsTime = 1;
     }
+    m_autoIdleSaveDocumentsEmitMessage = m_liteApp->settings()->value(LITEAPP_AUTOIDLESAVEDOCUMENTS_EMITMESSAGE,true).toBool();
+    m_maxEditorCount = m_liteApp->settings()->value(LITEAPP_MAXEDITORCOUNT,64).toInt();
 }
 
 void EditorManager::appIdle(int sec)
 {    
     if (m_isAutoIdleSaveDocuments) {
         if (sec == m_autoIdleSaveDocumentsTime) {
-            this->saveAllEditors(true);
+            this->saveAllEditors(m_autoIdleSaveDocumentsEmitMessage);
         }
     }
+}
+
+void EditorManager::closeEditorForTab(int index)
+{
+    QWidget *w = m_editorTabWidget->widget(index);
+    IEditor *ed = m_widgetEditorMap.value(w,0);
+    closeEditor(ed);
 }
 

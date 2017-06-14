@@ -34,6 +34,8 @@
 #include <QTextStream>
 #include <QApplication>
 #include <QToolTip>
+#include <QRegExp>
+
 //lite_memory_check_begin
 #if defined(WIN32) && defined(_MSC_VER) &&  defined(_DEBUG)
      #define _CRTDBG_MAP_ALLOC
@@ -66,7 +68,7 @@ QString formatInfo(const QString &info)
 }
 
 GolangEdit::GolangEdit(LiteApi::IApplication *app, QObject *parent) :
-    QObject(parent), m_liteApp(app)
+    QObject(parent), m_liteApp(app), m_gorootSourceReadOnly(false)
 {
     LiteApi::IActionContext *actionContext = m_liteApp->actionManager()->getActionContext(this,"GolangEdit");
 
@@ -104,15 +106,6 @@ GolangEdit::GolangEdit(LiteApi::IApplication *app, QObject *parent) :
     m_sourceQueryProcess = new Process(this);
     m_enableMouseUnderInfo = true;
     m_enableMouseNavigation = true;
-    m_enableUseGuru = false;
-
-    m_guruFilePath = FileUtil::lookupGoBin("guru",m_liteApp,true);
-    if (!m_guruFilePath.isEmpty()) {
-        m_enableUseGuru = true;
-        m_liteApp->appendLog("GolangEdit",QString("Found guru at %1").arg(m_guruFilePath),false);
-    } else {
-        m_liteApp->appendLog("GolangEdit",QString("Not found guru, back to oracle!"),false);
-    }
 
     connect(m_liteApp->editorManager(),SIGNAL(editorCreated(LiteApi::IEditor*)),this,SLOT(editorCreated(LiteApi::IEditor*)));
     connect(m_liteApp->editorManager(),SIGNAL(currentEditorChanged(LiteApi::IEditor*)),this,SLOT(currentEditorChanged(LiteApi::IEditor*)));
@@ -248,13 +241,49 @@ void GolangEdit::applyOption(const QString &option)
     }
     m_enableMouseUnderInfo = m_liteApp->settings()->value(GOLANGEDIT_MOUSEINFO,true).toBool();
     m_enableMouseNavigation = m_liteApp->settings()->value(GOLANGEDIT_MOUSENAVIGATIOIN,true).toBool();
+    bool gorootSourceReadOnly = m_liteApp->settings()->value(GOLANGEDIT_GOROOTSOURCEREADONLY,false).toBool();
+    if (gorootSourceReadOnly != m_gorootSourceReadOnly) {
+        m_gorootSourceReadOnly = gorootSourceReadOnly;
+        QProcessEnvironment env = LiteApi::getGoEnvironment(m_liteApp);
+        QString goroot = env.value("GOROOT");
+        if (!goroot.isEmpty()) {
+            foreach (LiteApi::IEditor *editor, m_liteApp->editorManager()->editorList()) {
+                if (!editor) {
+                    continue;
+                }
+                QString filePath = editor->filePath();
+                if (filePath.isEmpty()) {
+                    continue;
+                }
+                if (QDir::fromNativeSeparators(filePath).startsWith(QDir::fromNativeSeparators(goroot))) {
+                    editor->setReadOnly(m_gorootSourceReadOnly);
+                }
+            }
+        }
+    }
 }
 
 void GolangEdit::editorCreated(LiteApi::IEditor *editor)
 {
-    if (!editor || editor->mimeType() != "text/x-gosrc") {
+    if (!editor) {
         return;
     }
+    if (m_gorootSourceReadOnly) {
+        QString path = editor->filePath();
+        if ( !path.isEmpty()) {
+            QProcessEnvironment env = LiteApi::getGoEnvironment(m_liteApp);
+            QString goroot = env.value("GOROOT");
+            if (!goroot.isEmpty()) {
+                if (QDir::fromNativeSeparators(path).startsWith(QDir::fromNativeSeparators(goroot))) {
+                    editor->setReadOnly(true);
+                }
+            }
+        }
+    }
+    if (editor->mimeType() != "text/x-gosrc") {
+        return;
+    }
+
     //editor->widget()->addAction(m_commentAct);
     QMenu *menu = LiteApi::getEditMenu(editor);
     if (menu) {
@@ -369,14 +398,8 @@ void GolangEdit::updateLink(const QTextCursor &cursor, const QPoint &pos, bool n
         }
         return;
     }
-    if (m_findLinkProcess->state() != QProcess::NotRunning) {
-        if (!m_findLinkProcess->waitForFinished(100)) {
-            m_findLinkProcess->kill();
-            if (!m_findLinkProcess->waitForFinished(100)) {
-                m_liteApp->appendLog("golang","find link timeout",false);
-                return;
-            }
-        }
+    if (!m_findLinkProcess->isStop()) {
+        m_findLinkProcess->stop(100);
     }
 
     m_lastLink.clear();
@@ -392,11 +415,26 @@ void GolangEdit::updateLink(const QTextCursor &cursor, const QPoint &pos, bool n
     int offset = m_editor->utf8Position(false,cursor.selectionStart());
 
     QFileInfo info(m_editor->filePath());
-    m_findLinkProcess->setEnvironment(LiteApi::getGoEnvironment(m_liteApp).toStringList());
+    m_findLinkProcess->setEnvironment(LiteApi::getCustomGoEnvironment(m_liteApp,m_editor).toStringList());
     m_findLinkProcess->setWorkingDirectory(info.path());
-    m_findLinkProcess->startEx(cmd,QString("types -b -pos \"%1:%2\" -stdin -def -info -doc .").
-                             arg(info.fileName()).
-                               arg(offset));
+
+    QStringList args;
+    args << "types";
+    QString tags = LiteApi::getGoBuildFlagsArgument(m_liteApp,m_editor,"-tags");
+    if (!tags.isEmpty()) {
+        args << "-tags";
+        args << tags;
+    }
+    args << "-b";
+    args << "-pos";
+    args << QString("\"%1:%2\"").arg(info.fileName()).arg(offset);
+    args << "-stdin";
+    args << "-info";
+    args << "-def";
+    args << "-doc";
+    args << ".";
+
+    m_findLinkProcess->startEx(cmd,args.join(" "));
 }
 
 void GolangEdit::aboutToShowContextMenu()
@@ -460,16 +498,34 @@ void GolangEdit::editorJumpToDecl()
     if (text.isEmpty()) {
         return;
     }
+
+    if (!m_findDefProcess->isStop()) {
+        m_findDefProcess->stop(100);
+    }
+
     m_lastCursor = m_plainTextEdit->textCursor();
     int offset = moveLeft?m_editor->utf8Position()-1:m_editor->utf8Position();
     QString cmd = LiteApi::getGotools(m_liteApp);
     m_srcData = m_editor->utf8Data();
     QFileInfo info(m_editor->filePath());
-    m_findDefProcess->setEnvironment(LiteApi::getGoEnvironment(m_liteApp).toStringList());
+    m_findDefProcess->setEnvironment(LiteApi::getCustomGoEnvironment(m_liteApp,m_editor).toStringList());
     m_findDefProcess->setWorkingDirectory(info.path());
-    m_findDefProcess->startEx(cmd,QString("types -pos \"%1:%2\" -stdin -def .").
-                             arg(info.fileName()).
-                              arg(offset));
+
+    QStringList args;
+    args << "types";
+    QString tags = LiteApi::getGoBuildFlagsArgument(m_liteApp,m_editor,"-tags");
+    if (!tags.isEmpty()) {
+        args << "-tags";
+        args << tags;
+    }
+    args << "-pos";
+    args << QString("\"%1:%2\"").arg(info.fileName()).arg(offset);
+    args << "-stdin";
+    args << "-def";
+    args << ".";
+
+
+    m_findDefProcess->startEx(cmd,args.join(" "));
 }
 
 void GolangEdit::editorFindUsages()
@@ -521,14 +577,33 @@ void GolangEdit::editorFindInfo()
     if (text.isEmpty()) {
         return;
     }
+    if (!m_findInfoProcess->isStop()) {
+        m_findInfoProcess->stop(100);
+    }
+
     m_lastCursor = m_plainTextEdit->textCursor();
     int offset = moveLeft?m_editor->utf8Position()-1:m_editor->utf8Position();
 
-    m_findInfoProcess->setEnvironment(LiteApi::getGoEnvironment(m_liteApp).toStringList());
+    m_findInfoProcess->setEnvironment(LiteApi::getCustomGoEnvironment(m_liteApp,m_editor).toStringList());
     m_findInfoProcess->setWorkingDirectory(info.path());
-    m_findInfoProcess->startEx(cmd,QString("types -pos \"%1:%2\" -stdin -info -def -doc .").
-                             arg(info.fileName()).
-                             arg(offset));
+
+
+    QStringList args;
+    args << "types";
+    QString tags = LiteApi::getGoBuildFlagsArgument(m_liteApp,m_editor,"-tags");
+    if (!tags.isEmpty()) {
+        args << "-tags";
+        args << tags;
+    }
+    args << "-pos";
+    args << QString("\"%1:%2\"").arg(info.fileName()).arg(offset);
+    args << "-stdin";
+    args << "-info";
+    args << "-def";
+    args << "-doc";
+    args << ".";
+
+    m_findInfoProcess->startEx(cmd,args.join(" "));
 }
 
 void GolangEdit::findDefStarted()
@@ -834,8 +909,11 @@ void GolangEdit::runSourceQuery(const QString &action)
     QString cmd;
     QString arginfo;
     QString cmdName;
-    if (m_enableUseGuru) {
-        cmd = m_guruFilePath;
+
+    QString guruFilePath = FileUtil::lookupGoBin("guru",m_liteApp,true);
+
+    if (!guruFilePath.isEmpty()) {
+        cmd = guruFilePath;
         cmdName = "guru";
     } else {
         cmd = LiteApi::getGotools(m_liteApp);
@@ -859,10 +937,10 @@ void GolangEdit::runSourceQuery(const QString &action)
     m_sourceQueryInfo.offset2 = offset2;
 
 
-    m_sourceQueryProcess->setEnvironment(LiteApi::getGoEnvironment(m_liteApp).toStringList());
+    m_sourceQueryProcess->setEnvironment(LiteApi::getCustomGoEnvironment(m_liteApp,m_editor).toStringList());
     m_sourceQueryProcess->setWorkingDirectory(info.path());
 
-    if (m_enableUseGuru) {
+    if (!guruFilePath.isEmpty()) {
         if (offset2 == -1) {
             m_sourceQueryProcess->startEx(cmd,QString("-scope . %1 \"%2:#%3\"").
                                      arg(action).arg(info.fileName()).arg(offset));
@@ -890,8 +968,11 @@ void GolangEdit::runSourceQueryByInfo(const QString &action)
     QString cmd;
     QString arginfo;
     QString cmdName;
-    if (m_enableUseGuru) {
-        cmd = m_guruFilePath;
+
+    QString guruFilePath = FileUtil::lookupGoBin("guru",m_liteApp,true);
+
+    if (!guruFilePath.isEmpty()) {
+        cmd = guruFilePath;
         arginfo = "-pos";
         cmdName = "guru";
     } else {
@@ -905,9 +986,9 @@ void GolangEdit::runSourceQueryByInfo(const QString &action)
 
     m_sourceQueryOutput->append(QString("\nwait for source query \"%1\" %2 ...\n\n").arg(cmdName).arg(action));
 
-    m_sourceQueryProcess->setEnvironment(LiteApi::getGoEnvironment(m_liteApp).toStringList());
+    m_sourceQueryProcess->setEnvironment(LiteApi::getCustomGoEnvironment(m_liteApp,m_editor).toStringList());
     m_sourceQueryProcess->setWorkingDirectory(m_sourceQueryInfo.workPath);
-    if (m_enableUseGuru) {
+    if (!guruFilePath.isEmpty()) {
         if (offset2 == -1) {
             m_sourceQueryProcess->startEx(cmd,QString("-scope . %1 \"%2:#%3\"").
                                      arg(action).arg(m_sourceQueryInfo.fileName).arg(offset));

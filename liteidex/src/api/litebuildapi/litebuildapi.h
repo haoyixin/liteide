@@ -21,8 +21,8 @@
 // Module: litebuildapi.h
 // Creator: visualfc <visualfc@gmail.com>
 
-#ifndef __LITEBUILDAPI_H__
-#define __LITEBUILDAPI_H__
+#ifndef LITEBUILDAPI_H
+#define LITEBUILDAPI_H
 
 #include "liteapi/liteapi.h"
 #include <QProcessEnvironment>
@@ -187,19 +187,39 @@ protected:
 class BuildCustom
 {
 public:
-    BuildCustom()
+    BuildCustom() : m_hasShared(false), m_isReadOnly(false), m_isEscaped(false)
     {
     }
     void setId(const QString &id) { m_id = id; }
     void setName(const QString &name) { m_name = name; }
     void setValue(const QString &value) { m_value = value; }
+    void setSharedValue(const QString &value) {
+        m_hasShared = true;
+        m_sharedValue = value;
+    }
+    void setReadOnly(const QString &value)
+    {
+        m_isReadOnly = QVariant(value).toBool();
+    }
+    void setEscaped(const QString &value)
+    {
+        m_isEscaped = QVariant(value).toBool();
+    }
     QString id() const { return m_id; }
     QString name() const { return m_name; }
     QString value() const { return m_value; }
+    bool hasShared() const { return m_hasShared; }
+    QString sharedValue() const { return m_sharedValue; }
+    bool isReadOnly() const { return m_isReadOnly; }
+    bool isEscaped() const { return m_isEscaped; }
 protected:
     QString m_id;
     QString m_name;
     QString m_value;
+    QString m_sharedValue;
+    bool    m_hasShared;
+    bool    m_isReadOnly;
+    bool    m_isEscaped;
 };
 
 class BuildTarget
@@ -281,19 +301,112 @@ public:
     virtual TargetInfo getTargetInfo() = 0;
     virtual IBuildManager *buildManager() const = 0;   
     virtual QString envValue(LiteApi::IBuild *build, const QString &value) = 0;
+    virtual QString buildPathEnvValue(LiteApi::IBuild *build, const QString &buildFilePath, const QString &value) = 0;
     virtual void appendOutput(const QString &str, const QBrush &brush, bool active, bool updateExistsTextColor = true) = 0;
     virtual void execAction(const QString &mime,const QString &id) = 0;
     virtual void execCommand(const QString &cmd, const QString &args, const QString &workDir, bool updateExistsTextColor = true, bool activateOutputCheck = true, bool navigate = true, bool command = true) = 0;
     virtual bool execGoCommand(const QStringList &args, const QString &work, bool waitFinish = true) = 0;
 };
 
+inline QString sourceBuildFilePath(const QString &filePath)
+{
+    QFileInfo info(filePath);
+    if (info.isDir()) {
+        return info.filePath();
+    }
+    return info.path();
+}
+
+inline QString editorBuildFilePath(IEditor *editor)
+{
+    QString buildFilePath;
+    if (editor) {
+        QString filePath = editor->filePath();
+        if (!filePath.isEmpty()) {
+            buildFilePath = QFileInfo(filePath).path();
+        }
+    }
+    return buildFilePath;
+}
+
+
 inline ILiteBuild *getLiteBuild(LiteApi::IApplication* app)
 {
     return LiteApi::findExtensionObject<ILiteBuild*>(app,"LiteApi.ILiteBuild");
 }
 
+inline IBuild *getGoBuild(LiteApi::IApplication *app)
+{
+    ILiteBuild *build = getLiteBuild(app);
+    if (!build) {
+        return 0;
+    }
+    return build->buildManager()->findBuild("text/x-gosrc");
+}
+
+inline QString parserArgumentValue(const QString &opt, const QString &text)
+{
+    int pos = text.indexOf(opt);
+    if (pos == -1) {
+        return QString();
+    }
+    QString value = text.mid(pos+opt.length());
+    if (value.startsWith('=')) {
+        value = value.mid(1);
+    } else if (value.startsWith(' ')) {
+        value = value.trimmed();
+    }
+    if (value.isEmpty()) {
+        return QString();
+    }
+    if (value.startsWith('\'')) {
+        int pos = value.indexOf('\'',1);
+        if (pos != -1) {
+            return value.left(pos+1);
+        }
+    } else if (value.startsWith('\"')) {
+        int pos = value.indexOf('\"',1);
+        if (pos != -1) {
+            return value.left(pos+1);
+        }
+    } else {
+        int pos = value.indexOf(' ');
+        if (pos != -1) {
+            return value.left(pos);
+        }
+        return value;
+    }
+    return QString();
+}
+
+inline QString getGoBuildFlagsArgument(LiteApi::IApplication *app, const QString &buildFilePath, const QString &opt)
+{
+    ILiteBuild *liteBuild = getLiteBuild(app);
+    LiteApi::IBuild *build = getGoBuild(app);
+    if (!liteBuild || !build ) {
+        return QString();
+    }
+    QString value = liteBuild->buildPathEnvValue(build,buildFilePath,"$(BUILDFLAGS)");
+    QString tags = parserArgumentValue(opt,value);
+    if (tags.isEmpty()) {
+        value = liteBuild->buildPathEnvValue(build,buildFilePath,"$(BUILDARGS)");
+        tags = parserArgumentValue(opt,value);
+    }
+    return tags;
+}
+
+inline QString getGoBuildFlagsArgument(LiteApi::IApplication *app, LiteApi::IEditor *editor, const QString &opt)
+{
+    ILiteBuild *liteBuild = getLiteBuild(app);
+    if (!liteBuild) {
+        return QString();
+    }
+    QString buildFilePath = editorBuildFilePath(editor);
+    return getGoBuildFlagsArgument(app,buildFilePath,opt);
+}
+
 } //namespace LiteApi
 
 
-#endif //__LITEBUILDAPI_H__
+#endif //LITEBUILDAPI_H
 

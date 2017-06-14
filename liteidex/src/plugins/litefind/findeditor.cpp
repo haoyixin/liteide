@@ -80,6 +80,10 @@ FindEditor::FindEditor(LiteApi::IApplication *app, QObject *parent) :
     close->setFlat(true);
     close->setToolTip(tr("Close"));
 
+    m_showReplaceCheckBox = new QCheckBox;
+    m_showReplaceCheckBox->setText(tr("Show Replace"));
+    connect(m_showReplaceCheckBox,SIGNAL(toggled(bool)),this,SLOT(setReplaceMode(bool)));
+
     connect(close,SIGNAL(clicked()),this,SLOT(hideFind()));
 
     QGridLayout *layout = new QGridLayout;
@@ -100,7 +104,8 @@ FindEditor::FindEditor(LiteApi::IApplication *app, QObject *parent) :
     layout->addWidget(m_findEdit,0,1);
     layout->addWidget(m_findNext,0,2);
     layout->addWidget(m_findPrev,0,3);
-    layout->addWidget(close,0,4);
+    layout->addWidget(m_showReplaceCheckBox,0,4);
+    layout->addWidget(close,0,5);
 
     layout->addWidget(m_replaceLabel,1,0);
     layout->addWidget(m_replaceEdit,1,1);
@@ -171,12 +176,18 @@ void FindEditor::setVisible(bool b)
     updateCurrentEditor(m_liteApp->editorManager()->currentEditor());
 }
 
+bool FindEditor::isVisible() const
+{
+    return m_widget->isVisible();
+}
+
 void FindEditor::setReplaceMode(bool b)
 {
     m_replaceLabel->setVisible(b);
     m_replaceEdit->setVisible(b);
     m_replace->setVisible(b);
     m_replaceAll->setVisible(b);
+    m_showReplaceCheckBox->setChecked(b);
 }
 
 void FindEditor::findHelper(FindOption *opt)
@@ -327,10 +338,11 @@ void FindEditor::replaceHelper(LiteApi::ITextEditor *editor, FindOption *opt, in
     }
     int number = 0;
     bool wrap = opt->wrapAround;
+    ed->textCursor().beginEditBlock();
     do {
         if (!find.isNull()) {
             number++;
-            find.beginEditBlock();
+            //find.beginEditBlock();
             QString text = find.selectedText();
             if (opt->useRegexp) {
                 text.replace(QRegExp(opt->findText,cs),opt->replaceText);
@@ -339,7 +351,7 @@ void FindEditor::replaceHelper(LiteApi::ITextEditor *editor, FindOption *opt, in
             }
             find.removeSelectedText();
             find.insertText(text);
-            find.endEditBlock();
+            //find.endEditBlock();
             ed->setTextCursor(find);
         }
         cursor = ed->textCursor();
@@ -366,6 +378,7 @@ void FindEditor::replaceHelper(LiteApi::ITextEditor *editor, FindOption *opt, in
             break;
         }
     } while(!find.isNull());
+    ed->textCursor().endEditBlock();
     if (replaceCount == -1) {
         m_status->setText(QString("Replace:%1").arg(number));
     }

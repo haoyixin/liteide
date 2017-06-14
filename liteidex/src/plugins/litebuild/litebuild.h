@@ -52,6 +52,7 @@ public:
     virtual QMap<QString,QString> liteideEnvMap() const;
     virtual LiteApi::TargetInfo getTargetInfo();
     virtual QString envValue(LiteApi::IBuild *build, const QString &value);
+    virtual QString buildPathEnvValue(LiteApi::IBuild *build, const QString &buildFilePath, const QString &value);
     virtual LiteApi::IBuildManager *buildManager() const;
     virtual void appendOutput(const QString &str, const QBrush &brush, bool active, bool updateExistsTextColor = true);
     virtual void execCommand(const QString &cmd, const QString &args, const QString &workDir,bool updateExistsTextColor = true, bool activateOutputCheck = true, bool navigate = true, bool command = true);
@@ -60,7 +61,8 @@ public:
 public:
     QString envToValue(const QString &value,QMap<QString,QString> &liteEnv,const QProcessEnvironment &env);
     void setCurrentBuild(LiteApi::IBuild *build);
-    void updateBuildConfig(LiteApi::IBuild *build);
+    void updateBuildConfig(LiteApi::IBuild *);
+    void updateBuildConfigHelp(LiteApi::IBuild *build, const QString &buildRootPath, QStandardItemModel *liteideModel, QStandardItemModel *configModel, QStandardItemModel *customModel, QStandardItemModel *actionModel);
     void loadProjectInfo(const QString &filePath);
     void loadEditorInfo(const QString &filePath);
     void loadTargetInfo(LiteApi::IBuild *build);
@@ -83,6 +85,7 @@ public slots:
     void editorCreated(LiteApi::IEditor *editor);
     void currentEditorChanged(LiteApi::IEditor*);
     void buildAction(LiteApi::IBuild*,LiteApi::BuildAction*);
+    void buildTask(LiteApi::IBuild *build, bool killOld, const QStringList &taskList);
     void execAction(const QString &mime,const QString &id);
     void extOutput(const QByteArray &output,bool bError);
     void extFinish(bool error,int exitCode, QString msg);
@@ -93,6 +96,7 @@ public slots:
     void aboutToShowFolderContextMenu(QMenu *menu, LiteApi::FILESYSTEM_CONTEXT_FLAG flag, const QFileInfo &info);
     void fmctxExecuteFile();
     void fmctxGoLockBuild();
+    void fmctxGoBuildConfigure();
     void fmctxGoTool();
     void fmctxGofmt();
     void applyOption(QString);
@@ -109,9 +113,6 @@ protected:
     QToolBar    *m_buildToolBar;
     QMenu       *m_buildMenu;
     QMap<QString,BuildBarInfo*> m_buildBarInfoMap;
-    QStandardItemModel *m_liteideModel;
-    QStandardItemModel *m_configModel;
-    QStandardItemModel *m_customModel;
     QString m_workDir;
     ProcessEx *m_process;
     TextOutput *m_output;
@@ -126,6 +127,7 @@ protected:
     QMenu       *m_fmctxGoToolMenu;
     QAction     *m_fmctxExecuteFileAct;
     QAction     *m_fmctxGoLockBuildAct;
+    QAction     *m_fmctxGoBuildConfigAct;
     QAction     *m_fmctxGoBuildAct;
     QAction     *m_fmctxGoBuildAllAct;
     QAction     *m_fmctxGoInstallAct;

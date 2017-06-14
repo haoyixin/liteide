@@ -109,20 +109,6 @@ void SymbolTreeView::focusOutEvent(QFocusEvent *event)
         QTreeView::focusOutEvent(event);
 }
 
-#ifdef Q_WS_MAC
-void SymbolTreeView::keyPressEvent(QKeyEvent *event)
-{
-    if ((event->key() == Qt::Key_Return
-            || event->key() == Qt::Key_Enter)
-            && event->modifiers() == 0
-            && currentIndex().isValid()) {
-        emit activated(currentIndex());
-        return;
-    }
-    QTreeView::keyPressEvent(event);
-}
-#endif
-
 QModelIndex SymbolTreeView::topViewIndex()
 {
     return indexAt(QPoint(1,1));
@@ -210,4 +196,20 @@ void SymbolTreeView::loadState(QAbstractItemModel *model,SymbolTreeState *state)
 
     verticalScrollBar()->setValue(state->vbar);
     horizontalScrollBar()->setValue(state->hbar);
+}
+
+void SymbolTreeView::keyPressEvent(QKeyEvent *event)
+{
+    // Note: This always eats the event
+    // whereas QAbstractItemView never eats it
+    if ((event->key() == Qt::Key_Return
+            || event->key() == Qt::Key_Enter)
+            && event->modifiers() == 0
+            && QTreeView::currentIndex().isValid()
+            && QTreeView::state() != QAbstractItemView::EditingState) {
+        emit QTreeView::activated(QTreeView::currentIndex());
+        emit enterKeyPressed(QTreeView::currentIndex());
+        return;
+    }
+    QTreeView::keyPressEvent(event);
 }

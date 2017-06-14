@@ -366,7 +366,7 @@ QString FileUtil::lookupGoBin(const QString &bin, LiteApi::IApplication *app, bo
             return find;
         }
     }
-    QProcessEnvironment env = LiteApi::getCurrentEnvironment(app);
+    QProcessEnvironment env = LiteApi::getGoEnvironment(app);
 #ifdef Q_OS_WIN
     QString sep = ";";
 #else
@@ -374,27 +374,27 @@ QString FileUtil::lookupGoBin(const QString &bin, LiteApi::IApplication *app, bo
 #endif
 
     QString goos = env.value("GOOS");
-    if (goos.isEmpty()) {
-        goos = LiteApi::getDefaultGOOS();
-    }
+//    if (goos.isEmpty()) {
+//        goos = LiteApi::getDefaultGOOS();
+//    }
     QString goarch = env.value("GOARCH");
-    QString goroot = env.value("GOROOT");
-    if (goroot.isEmpty()) {
-        goroot = LiteApi::getDefaultGOROOT();
-    }
+//    QString goroot = env.value("GOROOT");
+//    if (goroot.isEmpty()) {
+//        goroot = LiteApi::getDefaultGOROOT();
+//    }
     QStringList pathList;
     foreach (QString path, env.value("GOPATH").split(sep,QString::SkipEmptyParts)) {
         pathList.append(QDir::toNativeSeparators(path));
     }
-    foreach (QString path, app->settings()->value("liteide/gopath").toStringList()) {
-        pathList.append(QDir::toNativeSeparators(path));
-    }
-    pathList.removeDuplicates();
-    env.insert("GOPATH",pathList.join(sep));
+//    foreach (QString path, app->settings()->value("liteide/gopath").toStringList()) {
+//        pathList.append(QDir::toNativeSeparators(path));
+//    }
+//    pathList.removeDuplicates();
+//    env.insert("GOPATH",pathList.join(sep));
 
-    if (!goroot.isEmpty()) {
-        pathList.prepend(goroot);
-    }
+//    if (!goroot.isEmpty()) {
+//        pathList.prepend(goroot);
+//    }
 
     QStringList binList;
     QString gobin = env.value("GOBIN");
@@ -526,5 +526,53 @@ void FileUtil::openInExplorer(const QString &path)
     } else {
         QDesktopServices::openUrl(QUrl::fromLocalFile(info.path()));
     }
+}
+
+void FileUtil::openInShell(LiteApi::IApplication *app, const QString &file)
+{
+    QFileInfo info(file);
+    QDir dir;
+    if (info.isDir()) {
+        dir.setCurrent(file);
+    } else {
+        dir = info.dir();
+    }
+    QProcessEnvironment env = LiteApi::getCurrentEnvironment(app);
+    QString shell = env.value("LITEIDE_SHELL");
+    if (!shell.isEmpty()) {
+        foreach (QString info, shell.split(";",QString::SkipEmptyParts)) {
+            QStringList ar = info.split(" ",QString::SkipEmptyParts);
+            if (ar.size() >= 1) {
+                QString cmd = FileUtil::lookPath(ar[0],LiteApi::getCurrentEnvironment(app),false);
+                if (!cmd.isEmpty()) {
+                    QString path = dir.path();
+                    ar.pop_front();
+#ifdef Q_OS_MAC
+                    ar.push_back(path);
+#endif
+#ifdef Q_OS_WIN
+    if (path.length() == 2 && path.right(1) == ":") {
+        path += "/";
+    }
+#endif
+                    QProcess::startDetached(cmd,ar,path);
+                    return;
+                }
+            }
+        }
+        return;
+    }
+    QString cmd = env.value("LITEIDE_TERM");
+    QStringList args = env.value("LITEIDE_TERMARGS").split(" ",QString::SkipEmptyParts);
+    QString path = dir.path();
+#ifdef Q_OS_MAC
+    args.append(path);
+#endif
+#ifdef Q_OS_WIN
+    if (path.length() == 2 && path.right(1) == ":") {
+        path += "/";
+    }
+#endif
+    QProcess::startDetached(cmd,args,path);
 }
 

@@ -38,10 +38,12 @@
 #define OPTION_LITEOUTPUT  "option/liteoutput"
 
 #define LITEAPP_MAXRECENTFILES "LiteApp/MaxRecentFile"
+#define LITEAPP_MAXEDITORCOUNT "LiteApp/MaxEditorCount"
 #define LITEAPP_AUTOCLOSEPROEJCTFILES "LiteApp/AutoCloseProjectEditors"
 #define LITEAPP_AUTOLOADLASTSESSION "LiteApp/AutoLoadLastSession"
 #define LITEAPP_AUTOIDLESAVEDOCUMENTS "LiteApp/AutoIdleSaveDocuments"
 #define LITEAPP_AUTOIDLESAVEDOCUMENTS_TIME  "LiteApp/AutoIdelSaveDocumentsTime"
+#define LITEAPP_AUTOIDLESAVEDOCUMENTS_EMITMESSAGE  "LiteApp/AutoIdelSaveDocumentsEmitMessage"
 #define LITEAPP_LANGUAGE "General/Language"
 #define LITEAPP_STYLE "LiteApp/WindowStyle"
 #define LITEAPP_SPLASHVISIBLE "LiteApp/SplashVisible"
@@ -60,6 +62,9 @@
 #define LITEAPP_STARTUPRELOADFILES   "LiteApp/StartupReloadFiles"
 #define LITEAPP_STARTUPRELOADFOLDERS   "LiteApp/StartupReloadFolders"
 #define LITEAPP_FILEWATCHERAUTORELOAD "LiteApp/FileWatcherAutoReload"
+#define LITEIDE_CUSTOMEICONPATH    "LiteApp/CustomeIconPath"
+#define LITEIDE_CUSTOMEICON "LiteApp/CustomeIcon"
+#define LITEAPP_TOOLWINDOW_SHORTCUTS "LiteApp/ToolWindowShortcuts"
 
 #define OUTPUT_FAMILY "output/family"
 #define OUTPUT_FONTSIZE "output/fontsize"

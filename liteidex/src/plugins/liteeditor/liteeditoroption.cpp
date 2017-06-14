@@ -24,6 +24,7 @@
 #include "liteeditoroption.h"
 #include "ui_liteeditoroption.h"
 #include "liteeditor_global.h"
+#include "liteapi/liteutil.h"
 #include <QFontDatabase>
 #include <QDir>
 #include <QFileInfo>
@@ -40,6 +41,18 @@
 #endif
 //lite_memory_check_end
 
+static QString defaultFontFamily()
+{
+#if defined(Q_OS_WIN)
+    return "Courier";
+#elif defined(Q_OS_LINUX)
+    return "Monospace";
+#elif defined(Q_OS_MAC)
+    return "Menlo";
+#else
+    return "Monospace";
+#endif
+}
 
 LiteEditorOption::LiteEditorOption(LiteApi::IApplication *app,QObject *parent) :
     LiteApi::IOption(parent),
@@ -49,28 +62,19 @@ LiteEditorOption::LiteEditorOption(LiteApi::IApplication *app,QObject *parent) :
 {
     ui->setupUi(m_widget);
 
-    QFontDatabase db;
-    const QStringList families = db.families();
-    ui->familyComboBox->addItems(families);
+//    QFontDatabase db;
+//    const QStringList families = db.families();
 
-#if defined(Q_OS_WIN)
-    m_fontFamily = m_liteApp->settings()->value(EDITOR_FAMILY,"Courier").toString();
-#elif defined(Q_OS_LINUX)
-    m_fontFamily = m_liteApp->settings()->value(EDITOR_FAMILY,"Monospace").toString();
-#elif defined(Q_OS_MAC)
-    m_fontFamily = m_liteApp->settings()->value(EDITOR_FAMILY,"Menlo").toString();
-#else
-    m_fontFamily = m_liteApp->settings()->value(EDITOR_FAMILY,"Monospace").toString();
-#endif
+    m_fontFamily = m_liteApp->settings()->value(EDITOR_FAMILY,defaultFontFamily()).toString();
+
+    ui->fontComboBox->setCurrentFont(QFont(m_fontFamily));
+
     m_fontSize = m_liteApp->settings()->value(EDITOR_FONTSIZE,12).toInt();
 
     int fontZoom = m_liteApp->settings()->value(EDITOR_FONTZOOM,100).toInt();
 
     bool antialias = m_liteApp->settings()->value(EDITOR_ANTIALIAS,true).toBool();
     ui->antialiasCheckBox->setChecked(antialias);
-
-    const int idx = families.indexOf(m_fontFamily);
-    ui->familyComboBox->setCurrentIndex(idx);
 
     updatePointSizes();
 
@@ -139,25 +143,24 @@ LiteEditorOption::LiteEditorOption(LiteApi::IApplication *app,QObject *parent) :
     ui->cleanCompleterCacheCheckBox->setChecked(cleanComplerCache);
 
     connect(ui->editPushButton,SIGNAL(clicked()),this,SLOT(editStyleFile()));
-    connect(ui->rightLineVisibleCheckBox,SIGNAL(toggled(bool)),ui->rightLineWidthSpinBox,SLOT(setEnabled(bool)));    
+    connect(ui->rightLineVisibleCheckBox,SIGNAL(toggled(bool)),ui->rightLineWidthSpinBox,SLOT(setEnabled(bool)));
+    connect(ui->restoreDefaultFontButton,SIGNAL(clicked()),this,SLOT(restoreDefaultFont()));
+    connect(ui->monospaceFontCheckBox,SIGNAL(toggled(bool)),this,SLOT(filterMonospaceFont(bool)));
 
     m_mimeModel = new QStandardItemModel(0,5,this);
     m_mimeModel->setHeaderData(0,Qt::Horizontal,tr("MIME Type"));
     m_mimeModel->setHeaderData(1,Qt::Horizontal,tr("Tab Width"));
     m_mimeModel->setHeaderData(2,Qt::Horizontal,tr("Tab To Spaces"));
-    m_mimeModel->setHeaderData(3,Qt::Horizontal,tr("File Extensions"));
-    m_mimeModel->setHeaderData(4,Qt::Horizontal,tr("Custom Extensions"));
+    m_mimeModel->setHeaderData(3,Qt::Horizontal,tr("Custom Extensions"));
+    m_mimeModel->setHeaderData(4,Qt::Horizontal,tr("File Extensions"));
     connect(m_mimeModel,SIGNAL(itemChanged(QStandardItem*)),this,SLOT(mimeItemChanged(QStandardItem*)));
 
     ui->mimeTreeView->setModel(m_mimeModel);
     ui->mimeTreeView->setRootIsDecorated(false);
-#if QT_VERSION >= 0x050000
-    ui->mimeTreeView->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
-#else
-    ui->mimeTreeView->header()->setResizeMode(QHeaderView::ResizeToContents);
-#endif
 
-    foreach(QString mime, m_liteApp->editorManager()->mimeTypeList()) {
+    QStringList mimeTypes = m_liteApp->editorManager()->mimeTypeList();
+    qStableSort(mimeTypes);
+    foreach(QString mime, mimeTypes) {
         if (mime.startsWith("text/") || mime.startsWith("application/")) {
             QStandardItem *item = new QStandardItem(mime);
             item->setEditable(false);
@@ -179,10 +182,17 @@ LiteEditorOption::LiteEditorOption(LiteApi::IApplication *app,QObject *parent) :
                                   << item
                                   << tab
                                   << useSpace
-                                  << ext
-                                  << cus);
+                                  << cus
+                                  << ext);
         }
     }
+
+#if QT_VERSION >= 0x050000
+    ui->mimeTreeView->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
+#else
+    ui->mimeTreeView->header()->setResizeMode(QHeaderView::ResizeToContents);
+#endif
+
 }
 
 QWidget *LiteEditorOption::widget()
@@ -202,7 +212,7 @@ QString LiteEditorOption::mimeType() const
 
 void LiteEditorOption::apply()
 {
-    m_fontFamily = ui->familyComboBox->currentText();
+    m_fontFamily = ui->fontComboBox->currentFont().family();
     if (ui->sizeComboBox->count()) {
         const QString curSize = ui->sizeComboBox->currentText();
         bool ok = true;
@@ -284,15 +294,18 @@ void LiteEditorOption::apply()
     for (int i = 0; i < m_mimeModel->rowCount(); i++) {
         QString mime = m_mimeModel->item(i,0)->text();
         QString tab = m_mimeModel->item(i,1)->text();
-        QString custom = m_mimeModel->item(i,4)->text();
+        QString custom = m_mimeModel->item(i,3)->text();
         bool ok;
         int n = tab.toInt(&ok);
         if (ok && n > 0 && n < 20) {
-            m_liteApp->settings()->setValue(EDITOR_TABWIDTH+mime,n);
+            //m_liteApp->settings()->setValue(EDITOR_TABWIDTH+mime,n);
+            LiteApi::updateAppSetting(m_liteApp,EDITOR_TABWIDTH+mime,n,4);
         }
         bool b = m_mimeModel->item(i,2)->checkState() == Qt::Checked;        
-        m_liteApp->settings()->setValue(EDITOR_TABTOSPACES+mime,b);
-        m_liteApp->settings()->setValue(EDITOR_CUSTOMEXTENSION+mime,custom);
+        //m_liteApp->settings()->setValue(EDITOR_TABTOSPACES+mime,b);
+        LiteApi::updateAppSetting(m_liteApp,EDITOR_TABTOSPACES+mime,b,false);
+        //m_liteApp->settings()->setValue(EDITOR_CUSTOMEXTENSION+mime,custom);
+        LiteApi::updateAppSetting(m_liteApp,EDITOR_CUSTOMEXTENSION+mime,custom,"");
         LiteApi::IMimeType *imt = m_liteApp->mimeTypeManager()->findMimeType(mime);
         if (imt) {
             imt->setCustomPatterns(custom.split(";"));
@@ -334,8 +347,8 @@ void LiteEditorOption::updatePointSizes()
 
 QList<int> LiteEditorOption::pointSizesForSelectedFont() const
 {
-    QFontDatabase db;
-    const QString familyName = ui->familyComboBox->currentText();
+    static QFontDatabase db;
+    const QString familyName = ui->fontComboBox->currentFont().family();
     QList<int> sizeLst = db.pointSizes(familyName);
     if (!sizeLst.isEmpty())
         return sizeLst;
@@ -368,4 +381,24 @@ void LiteEditorOption::mimeItemChanged(QStandardItem *item)
             item->setText("4");
         }
     }
+}
+
+
+void LiteEditorOption::restoreDefaultFont()
+{
+    m_fontFamily = defaultFontFamily();
+    ui->fontComboBox->setCurrentFont(QFont(m_fontFamily));
+
+    m_fontSize = 12;
+
+    ui->fontZoomSpinBox->setValue(100);
+    ui->antialiasCheckBox->setChecked(true);
+
+    updatePointSizes();
+}
+
+void LiteEditorOption::filterMonospaceFont(bool b)
+{
+    ui->fontComboBox->setFontFilters(b ?QFontComboBox::MonospacedFonts :  QFontComboBox::AllFonts);
+    ui->fontComboBox->updateGeometry();
 }
