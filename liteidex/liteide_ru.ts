@@ -206,7 +206,7 @@ LiteIDE это простая кросплатформенная среда ра
     </message>
     <message>
         <source>Open Explorer Here</source>
-        <translation>Открыть папку в проводнике</translation>
+        <translation type="obsolete">Открыть папку в проводнике</translation>
     </message>
     <message>
         <source>Use godoc View</source>
@@ -298,6 +298,22 @@ LiteIDE это простая кросплатформенная среда ра
         <source>Open In New Window</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Show in Explorer</source>
+        <translation type="unfinished">Показать в проводнике</translation>
+    </message>
+    <message>
+        <source>Show in Finder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show Containing Folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Command Prompt Here</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>BuildConfigDialog</name>
@@ -322,12 +338,76 @@ LiteIDE это простая кросплатформенная среда ра
     <message>
         <source>Build</source>
         <oldsource>Build Config</oldsource>
-        <translation>Сборка</translation>
+        <translation type="obsolete">Сборка</translation>
     </message>
     <message>
         <source>Custom</source>
         <oldsource>Build Custom</oldsource>
         <translation>Другое</translation>
+    </message>
+    <message>
+        <source>GOPATH</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Use Custom GOPATH for Build Path</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Inherit System GOPATH</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Inherit LiteIDE GOPATH</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Custom GOPATH (one per line)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add Directory...</source>
+        <translation type="unfinished">Добавить...</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation type="unfinished">Очистить</translation>
+    </message>
+    <message>
+        <source>Reset all to initial value</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Choose directory to add to GOPATH:</source>
+        <translation type="unfinished">Выбор каталога для добавления в GOPATH</translation>
+    </message>
+    <message>
+        <source>Action</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Value</source>
+        <translation type="unfinished">Значение</translation>
+    </message>
+    <message>
+        <source>SharedValue</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Id</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cmd</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Config</source>
+        <translation type="unfinished">Конфигурация</translation>
     </message>
 </context>
 <context>
@@ -547,6 +627,22 @@ LiteIDE это простая кросплатформенная среда ра
     </message>
     <message>
         <source>Edit Toolbar</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Terminal Here</source>
+        <translation type="unfinished">Запустить терминал в папке</translation>
+    </message>
+    <message>
+        <source>Show in Finder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show Containing Folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Command Prompt Here</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -1046,7 +1142,7 @@ Do you want to reload the file from disk?</source>
     <message>
         <source>Use Current</source>
         <oldsource>Current</oldsource>
-        <translation>Текущая</translation>
+        <translation type="obsolete">Текущая</translation>
     </message>
     <message>
         <source>Filter:</source>
@@ -1071,6 +1167,14 @@ Do you want to reload the file from disk?</source>
     <message>
         <source>Open Directory</source>
         <translation>Открытие каталога</translation>
+    </message>
+    <message>
+        <source>Current Folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Auto Switch</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1099,6 +1203,20 @@ Do you want to reload the file from disk?</source>
     <message>
         <source>File is readonly</source>
         <translation>Файл только для чтения</translation>
+    </message>
+    <message>
+        <source>LiteIDE X</source>
+        <translation type="unfinished">LiteIDE X</translation>
+    </message>
+    <message>
+        <source>Warning! Replace text is empty.
+Want to remove all the search items?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Warning! Replace text is whitespace.
+Want to replace to all the search items to whitespace?</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1470,6 +1588,10 @@ Do you want to reload the file from disk?</source>
         <source>Not found</source>
         <translation>Не найдено</translation>
     </message>
+    <message>
+        <source>Show Replace</source>
+        <translation type="unfinished">Режим замены</translation>
+    </message>
 </context>
 <context>
     <name>FolderListView</name>
@@ -1750,6 +1872,10 @@ Do you want to reload the file from disk?</source>
     <message>
         <source>Enable mouse navigation</source>
         <translation>Навигация мышью</translation>
+    </message>
+    <message>
+        <source>Go root source file editor setup read only</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -2311,6 +2437,42 @@ Success: %2.</oldsource>
         <source>Reload files in session</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Fallback build-in icon library and liteapp/qrc/default</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Icon [*]</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Load the external file icon library</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Emit message</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>emit save message for auto code format, etc...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Use tool window shortcuts</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>0-99</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Editor Tabs</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>10-999</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>LiteBuild</name>
@@ -2324,11 +2486,11 @@ Success: %2.</oldsource>
     </message>
     <message>
         <source>Name</source>
-        <translation>Имя</translation>
+        <translation type="obsolete">Имя</translation>
     </message>
     <message>
         <source>Value</source>
-        <translation>Значение</translation>
+        <translation type="obsolete">Значение</translation>
     </message>
     <message>
         <source>Build Configuration...</source>
@@ -2350,7 +2512,7 @@ Success: %2.</oldsource>
     </message>
     <message>
         <source>Lock Build Path</source>
-        <translation>Зафиксировать путь сборки</translation>
+        <translation type="unfinished">Зафиксировать путь сборки</translation>
     </message>
     <message>
         <source>Line Wrap</source>
@@ -2431,6 +2593,10 @@ Success: %2.</oldsource>
     <message>
         <source>Automatic positioning cursor</source>
         <translation>Автоматическое позиционирование курсора</translation>
+    </message>
+    <message>
+        <source>Build Path Configuration</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -3026,6 +3192,14 @@ Success: %2.</oldsource>
     </message>
     <message>
         <source>Custom Extensions</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show Monospace Font</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Restore Default Font</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -3848,7 +4022,7 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>System GOPATH</source>
-        <translation>Системный GOPATH</translation>
+        <translation type="obsolete">Системный GOPATH</translation>
     </message>
     <message>
         <source>Reload</source>
@@ -3856,7 +4030,7 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Custom Directories (one per line)</source>
-        <translation>Другие каталоги (один на строке)</translation>
+        <translation type="obsolete">Другие каталоги (один на строке)</translation>
     </message>
     <message>
         <source>Add Directory...</source>
@@ -3870,6 +4044,14 @@ Do you want to replace it?</source>
         <source>Choose directory to add to GOPATH:</source>
         <oldsource>Load GOPATH Directory</oldsource>
         <translation>Выбор каталога для добавления в GOPATH</translation>
+    </message>
+    <message>
+        <source>Use System GOPATH</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Use Custom GOPATH (one per line)</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

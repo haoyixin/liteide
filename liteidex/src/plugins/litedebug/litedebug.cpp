@@ -398,7 +398,13 @@ void LiteDebug::startDebug(const QString &cmd, const QString &args, const QStrin
     m_debugger->setInitBreakTable(m_fileBpMap);
     m_debugger->setEnvironment(LiteApi::getGoEnvironment(m_liteApp).toStringList());
     m_debugger->setWorkingDirectory(work);
-    if (!m_debugger->start(cmd,args)) {
+
+    QString icmd = cmd;
+    if (icmd.contains(" ")) {
+        icmd = "\""+icmd+"\"";
+    }
+
+    if (!m_debugger->start(icmd,args)) {
         m_liteApp->appendLog("LiteDebug","Failed to start debugger",true);
     }
 }
@@ -471,7 +477,6 @@ void LiteDebug::startDebug()
         return;
     }
 
-
     if (!m_liteBuild) {
         return;
     }
@@ -480,27 +485,37 @@ void LiteDebug::startDebug()
 
     LiteApi::TargetInfo info = m_liteBuild->getTargetInfo();
 
+    QString tags = LiteApi::getGoBuildFlagsArgument(m_liteApp,info.workDir,"-tags");
+
     QStringList args;
-    args << "build" << "-gcflags" << "\"-N -l\"";
+    args << "build" << "-gcflags" << "\"-N -l\"" ;
+    if (!tags.isEmpty()) {
+        args << "-tags" << tags;
+    }
+    args << "-o" << info.cmd;
+
     bool b = m_liteBuild->execGoCommand(args,info.workDir,true);
     if (!b) {
         return;
     }
 
-    QString cmd = FileUtil::lookPathInDir(info.cmd,info.workDir);
+    QString icmd = info.cmd;
+    if (icmd.startsWith("\"") && icmd.endsWith("\"")) {
+        icmd = icmd.mid(1,icmd.length()-2).trimmed();
+    }
+    QString cmd = FileUtil::lookPathInDir(icmd,info.workDir);
     if (cmd.isEmpty()) {
         m_liteApp->appendLog("debug",QString("not find execute file in path %2").arg(info.workDir),true);
         return;
     }
 
-    QString fileName = QFileInfo(cmd).fileName();
-
+    //QString fileName = QFileInfo(cmd).fileName();
     LiteApi::IEditor *editor = m_liteApp->editorManager()->currentEditor();
     if (editor) {
         m_startDebugFile = editor->filePath();
     }
 
-    this->startDebug(fileName,info.args,info.workDir);
+    this->startDebug(cmd,info.args,info.workDir);
 }
 
 void LiteDebug::startDebugTests()

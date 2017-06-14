@@ -113,8 +113,7 @@ protected:
     QAction               *m_sourceQueryOutputAct;
     bool m_enableMouseUnderInfo;
     bool m_enableMouseNavigation;
-    bool m_enableUseGuru;
-    QString     m_guruFilePath;
+    bool m_gorootSourceReadOnly;
     QTextCursor m_linkCursor;
     LiteApi::Link m_lastLink;
     QAction *m_findInfoAct;

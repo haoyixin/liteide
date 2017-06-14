@@ -106,7 +106,10 @@ LiteAppOption::LiteAppOption(LiteApi::IApplication *app,QObject *parent) :
     }
 
     int max = m_liteApp->settings()->value(LITEAPP_MAXRECENTFILES,32).toInt();
-    ui->maxRecentLineEdit->setText(QString("%1").arg(max));
+    //ui->maxRecentLineEdit->setText(QString("%1").arg(max));
+    ui->maxRecentFilesSpinBox->setValue(max);
+    max = m_liteApp->settings()->value(LITEAPP_MAXEDITORCOUNT,64).toInt();
+    ui->maxEditorCountSpinBox->setValue(max);
     //bool b = m_liteApp->settings()->value(LITEAPP_AUTOCLOSEPROEJCTFILES,true).toBool();
     //ui->autoCloseProjecEditorsCheckBox->setChecked(b);
     bool b1 = m_liteApp->settings()->value(LITEAPP_AUTOLOADLASTSESSION,true).toBool();
@@ -136,6 +139,9 @@ LiteAppOption::LiteAppOption(LiteApi::IApplication *app,QObject *parent) :
         ui->buttonGroup->buttons().at(id)->setChecked(true);
     }
 
+    connect(ui->autoIdleSaveDocumentsCheckBox,SIGNAL(toggled(bool)),ui->autoIdleSaveDocumentsTimeSpinBox,SLOT(setEnabled(bool)));
+    connect(ui->autoIdleSaveDocumentsCheckBox,SIGNAL(toggled(bool)),ui->autoIdleSaveDocumentsEmitMessageCheckBox,SLOT(setEnabled(bool)));
+
     bool b9 = m_liteApp->settings()->value(LITEAPP_AUTOIDLESAVEDOCUMENTS,false).toBool();
     ui->autoIdleSaveDocumentsCheckBox->setChecked(b9);
 
@@ -144,6 +150,28 @@ LiteAppOption::LiteAppOption(LiteApi::IApplication *app,QObject *parent) :
         time = 1;
     }
     ui->autoIdleSaveDocumentsTimeSpinBox->setValue(time);
+
+    bool emitmsg = m_liteApp->settings()->value(LITEAPP_AUTOIDLESAVEDOCUMENTS_EMITMESSAGE,true).toBool();
+    ui->autoIdleSaveDocumentsEmitMessageCheckBox->setChecked(emitmsg);
+
+    bool toolwndshortcuts = m_liteApp->settings()->value(LITEAPP_TOOLWINDOW_SHORTCUTS,true).toBool();
+    ui->toolWindowShortcutsCheckBox->setChecked(toolwndshortcuts);
+
+    connect(ui->customIconCheckBox,SIGNAL(toggled(bool)),ui->iconPathComboBox,SLOT(setEnabled(bool)));
+
+    bool customeIcon = m_liteApp->settings()->value(LITEIDE_CUSTOMEICON,false).toBool();
+    ui->customIconCheckBox->setChecked(customeIcon);
+    ui->iconPathComboBox->setEnabled(customeIcon);
+
+    QDir iconDir(m_liteApp->resourcePath()+"/liteapp/qrc");
+    foreach (QFileInfo info, iconDir.entryInfoList(QDir::Dirs|QDir::NoDotAndDotDot)) {
+        ui->iconPathComboBox->addItem(info.fileName());
+    }
+    QString iconPath = m_liteApp->settings()->value(LITEIDE_CUSTOMEICONPATH,"default").toString();
+    index = ui->iconPathComboBox->findText(iconPath,Qt::MatchFixedString);
+    if (index >= 0 && index < ui->iconPathComboBox->count()) {
+        ui->iconPathComboBox->setCurrentIndex(index);
+    }
 
     m_keysModel = new QStandardItemModel(0,5,this);
     m_keysModel->setHeaderData(0,Qt::Horizontal,tr("Command"));
@@ -212,8 +240,11 @@ void LiteAppOption::apply()
         m_liteApp->settings()->setValue(LITEAPP_STYLE,style);
     }
 
-    QString max = ui->maxRecentLineEdit->text();
+    //QString max = ui->maxRecentLineEdit->text();
+    int max = ui->maxRecentFilesSpinBox->value();
     m_liteApp->settings()->setValue(LITEAPP_MAXRECENTFILES,max);
+    max = ui->maxEditorCountSpinBox->value();
+    m_liteApp->settings()->setValue(LITEAPP_MAXEDITORCOUNT,max);
     //bool b = ui->autoCloseProjecEditorsCheckBox->isChecked();
    // m_liteApp->settings()->setValue(LITEAPP_AUTOCLOSEPROEJCTFILES,b);
     bool b1 = ui->autoLoadLastSessionCheckBox->isChecked();
@@ -239,6 +270,12 @@ void LiteAppOption::apply()
     int time = ui->autoIdleSaveDocumentsTimeSpinBox->value();
     m_liteApp->settings()->setValue(LITEAPP_AUTOIDLESAVEDOCUMENTS_TIME,time);
 
+    bool emitmsg = ui->autoIdleSaveDocumentsEmitMessageCheckBox->isChecked();
+    m_liteApp->settings()->setValue(LITEAPP_AUTOIDLESAVEDOCUMENTS_EMITMESSAGE,emitmsg);
+
+    bool toolwindowshortcuts = ui->toolWindowShortcutsCheckBox->isChecked();
+    m_liteApp->settings()->setValue(LITEAPP_TOOLWINDOW_SHORTCUTS,toolwindowshortcuts);
+
     int size = ui->buttonGroup->buttons().size();
     for (int i = 0; i < size; i++) {
         if (ui->buttonGroup->buttons().at(i)->isChecked()) {
@@ -256,6 +293,12 @@ void LiteAppOption::apply()
             qApp->setStyleSheet(styleSheet);
         }
     }
+
+    bool customelIcon = ui->customIconCheckBox->isChecked();
+    m_liteApp->settings()->setValue(LITEIDE_CUSTOMEICON,customelIcon);
+
+    QString iconPath = ui->iconPathComboBox->currentText();
+    m_liteApp->settings()->setValue(LITEIDE_CUSTOMEICONPATH,iconPath);
 
     for (int i = 0; i < m_keysModel->rowCount(); i++) {
         QStandardItem *root = m_keysModel->item(i,0);

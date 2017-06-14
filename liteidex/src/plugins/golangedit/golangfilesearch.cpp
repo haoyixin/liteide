@@ -22,6 +22,7 @@
 // Creator: visualfc <visualfc@gmail.com>
 
 #include "golangfilesearch.h"
+#include "litebuildapi/litebuildapi.h"
 #include <QTextBlock>
 //lite_memory_check_begin
 #if defined(WIN32) && defined(_MSC_VER) &&  defined(_DEBUG)
@@ -87,7 +88,7 @@ bool GolangFileSearch::replaceMode() const
 void GolangFileSearch::findUsages(LiteApi::ITextEditor *editor, QTextCursor cursor, bool global, bool replace)
 {
     if (!m_process->isStop()) {
-        return;
+        m_process->stop(100);
     }
 
     bool moveLeft = false;
@@ -111,15 +112,26 @@ void GolangFileSearch::findUsages(LiteApi::ITextEditor *editor, QTextCursor curs
     m_file.close();
     QString cmd = LiteApi::getGotools(m_liteApp);
     QFileInfo info(editor->filePath());
-    m_process->setEnvironment(LiteApi::getGoEnvironment(m_liteApp).toStringList());
+    m_process->setEnvironment(LiteApi::getCustomGoEnvironment(m_liteApp,editor).toStringList());
     m_process->setWorkingDirectory(info.path());
-    if (global) {
-        m_process->startEx(cmd,QString("types -pos \"%1:%2\" -info -use -all .").
-                                 arg(info.fileName()).arg(offset));
-    } else {
-        m_process->startEx(cmd,QString("types -pos \"%1:%2\" -info -use .").
-                                 arg(info.fileName()).arg(offset));
+
+    QStringList args;
+    args << "types";
+    QString tags = LiteApi::getGoBuildFlagsArgument(m_liteApp,editor,"-tags");
+    if (!tags.isEmpty()) {
+        args << "-tags";
+        args << tags;
     }
+    args << "-pos";
+    args << QString("\"%1:%2\"").arg(info.fileName()).arg(offset);
+    args << "-info";
+    args << "-use";
+    if (global) {
+        args << "-all";
+    }
+    args << ".";
+
+    m_process->startEx(cmd,args.join(" "));
 }
 
 void GolangFileSearch::findUsagesStarted()

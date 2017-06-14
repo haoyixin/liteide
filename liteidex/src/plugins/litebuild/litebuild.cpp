@@ -24,6 +24,8 @@
 #include "litebuild.h"
 #include "litebuild_global.h"
 #include "buildmanager.h"
+#include "liteapi/liteapi.h"
+#include "liteapi/liteutil.h"
 #include "fileutil/fileutil.h"
 #include "processex/processex.h"
 #include "textoutput/textoutput.h"
@@ -144,18 +146,6 @@ LiteBuild::LiteBuild(LiteApi::IApplication *app, QObject *parent) :
 
     //m_liteApp->actionManager()->insertViewMenu(LiteApi::ViewMenuToolBarPos,m_toolBar->toggleViewAction());
 
-    m_liteideModel = new QStandardItemModel(0,2,this);
-    m_liteideModel->setHeaderData(0,Qt::Horizontal,tr("Name"));
-    m_liteideModel->setHeaderData(1,Qt::Horizontal,tr("Value"));
-
-    m_configModel = new QStandardItemModel(0,2,this);
-    m_configModel->setHeaderData(0,Qt::Horizontal,tr("Name"));
-    m_configModel->setHeaderData(1,Qt::Horizontal,tr("Value"));
-
-    m_customModel = new QStandardItemModel(0,2,this);
-    m_customModel->setHeaderData(0,Qt::Horizontal,tr("Name"));
-    m_customModel->setHeaderData(1,Qt::Horizontal,tr("Value"));
-
     LiteApi::IActionContext *actionContext = m_liteApp->actionManager()->getActionContext(this,"Build");
 
     m_configAct = new QAction(QIcon("icon:litebuild/images/config.png"),tr("Build Configuration..."),this);
@@ -186,25 +176,27 @@ LiteBuild::LiteBuild(LiteApi::IApplication *app, QObject *parent) :
 
     m_fmctxGoLockBuildAct = new QAction(tr("Lock Build Path"),this);
 
+    m_fmctxGoBuildConfigAct = new QAction(tr("Build Path Configuration"),this);
+
     m_fmctxGoToolMenu = new QMenu("Go Tool");
 
     m_fmctxGoBuildAct = new QAction("Go Build",this);
-    m_fmctxGoBuildAct->setData("build -v");
+    m_fmctxGoBuildAct->setData("build $(BUILDARGS)");
 
     m_fmctxGoBuildAllAct = new QAction("Go Build All",this);
-    m_fmctxGoBuildAllAct->setData("build -v ./...");
+    m_fmctxGoBuildAllAct->setData("build $(BUILDARGS) ./...");
 
     m_fmctxGoInstallAct = new QAction("Go Install",this);
-    m_fmctxGoInstallAct->setData("install -v");
+    m_fmctxGoInstallAct->setData("install $(INSTALLARGS)");
 
     m_fmctxGoInstallAllAct = new QAction("Go Install All",this);
-    m_fmctxGoInstallAllAct->setData("install -v ./...");
+    m_fmctxGoInstallAllAct->setData("install $(INSTALLARGS) ./...");
 
     m_fmctxGoTestAct = new QAction("Go Test",this);
-    m_fmctxGoTestAct->setData("test -v");
+    m_fmctxGoTestAct->setData("test $(TESTARGS)");
 
     m_fmctxGoTestAllAct = new QAction("Go Test All",this);
-    m_fmctxGoTestAllAct->setData("test -v ./...");
+    m_fmctxGoTestAllAct->setData("test $(TESTARGS) ./...");
 
     m_fmctxGoCleanAct = new QAction("Go Clean",this);
     m_fmctxGoCleanAct->setData("clean -i -x");
@@ -213,19 +205,19 @@ LiteBuild::LiteBuild(LiteApi::IApplication *app, QObject *parent) :
     m_fmctxGoCleanAllAct->setData("clean -i -x ./...");
 
     m_fmctxGoGetAct = new QAction("Go Get",this);
-    m_fmctxGoGetAct->setData("get -v");
+    m_fmctxGoGetAct->setData("get $(GETARGS)");
 
     m_fmctxGoGetUpdateAct = new QAction("Go Get Update",this);
-    m_fmctxGoGetUpdateAct->setData("get -v -u");
+    m_fmctxGoGetUpdateAct->setData("get $(UPDATEGETARGS)");
 
     m_fmctxGoGetForceAct = new QAction("Go Get Force",this);
-    m_fmctxGoGetForceAct->setData("get -v -a");
+    m_fmctxGoGetForceAct->setData("get $(GORCEGETARGS)");
 
     m_fmctxGoVetAct = new QAction("Go Vet",this);
-    m_fmctxGoVetAct->setData("tool vet -v .");
+    m_fmctxGoVetAct->setData("vet $(VETARGS)");
 
     m_fmctxGoVetAllCheckAct = new QAction("Go Vet (enable all checks)",this);
-    m_fmctxGoVetAllCheckAct->setData("tool vet -v -all .");
+    m_fmctxGoVetAllCheckAct->setData("tool vet $(TOOLVETARGS) .");
 
     m_fmctxGoFmtAct = new QAction("GoFmt",this);
 
@@ -251,6 +243,7 @@ LiteBuild::LiteBuild(LiteApi::IApplication *app, QObject *parent) :
     m_fmctxGoToolMenu->addAction(m_fmctxGoFmtAct);
 
     connect(m_fmctxGoLockBuildAct,SIGNAL(triggered()),this,SLOT(fmctxGoLockBuild()));
+    connect(m_fmctxGoBuildConfigAct,SIGNAL(triggered()),this,SLOT(fmctxGoBuildConfigure()));
     connect(m_fmctxGoBuildAct,SIGNAL(triggered()),this,SLOT(fmctxGoTool()));
     connect(m_fmctxGoBuildAllAct,SIGNAL(triggered()),this,SLOT(fmctxGoTool()));
     connect(m_fmctxGoInstallAct,SIGNAL(triggered()),this,SLOT(fmctxGoTool()));
@@ -403,11 +396,25 @@ QString LiteBuild::envValue(LiteApi::IBuild *build, const QString &value)
                 buildFilePath = QFileInfo(filePath).path();
             }
         }
+    } else {
+        buildFilePath = m_buildRootPath;
     }
 
     QMap<QString,QString> env = buildEnvMap(build,buildFilePath);
     QProcessEnvironment sysenv = LiteApi::getGoEnvironment(m_liteApp);
     return this->envToValue(value,env,sysenv);
+}
+
+QString LiteBuild::buildPathEnvValue(IBuild *build, const QString &buildFilePath, const QString &value)
+{
+    if (!build) {
+        return value;
+    }
+
+    QMap<QString,QString> env = buildEnvMap(build,buildFilePath);
+    QProcessEnvironment sysenv = LiteApi::getGoEnvironment(m_liteApp);
+    return this->envToValue(value,env,sysenv);
+
 }
 
 QString LiteBuild::envToValue(const QString &value,QMap<QString,QString> &liteEnv,const QProcessEnvironment &env)
@@ -469,23 +476,12 @@ void LiteBuild::config()
         return;
     }
 
-    BuildConfigDialog dlg;
-    dlg.setBuild(m_build->id(),m_buildRootPath);
-    dlg.setModel(m_liteideModel,m_configModel,m_customModel);
+    BuildConfigDialog dlg(m_liteApp);
+    dlg.setBuild(m_build,m_buildRootPath, this->liteideEnvMap());
+
     if (dlg.exec() == QDialog::Accepted) {
-        QString key;
-        if (!m_buildRootPath.isEmpty()) {
-            key = "litebuild-custom/"+m_buildRootPath;
-        }
-        for (int i = 0; i < m_customModel->rowCount(); i++) {
-            QStandardItem *name = m_customModel->item(i,0);
-            QStandardItem *value = m_customModel->item(i,1);
-            //m_customMap.insert(name->text(),value->text());
-            QString id = name->data().toString();
-            if (!key.isEmpty()) {
-                m_liteApp->settings()->setValue(key+"#"+id,value->text());
-            }
-        }
+        dlg.saveBuild();
+        updateBuildConfig(m_build);
     }
 }
 
@@ -521,6 +517,7 @@ void LiteBuild::aboutToShowFolderContextMenu(QMenu *menu, LiteApi::FILESYSTEM_CO
                 act = menu->actions().at(0);
             }
             menu->insertAction(act,m_fmctxGoLockBuildAct);
+            menu->insertAction(act,m_fmctxGoBuildConfigAct);
             menu->insertSeparator(act);            
             //m_fmctxGoTestAct->setEnabled(hasTest);
             menu->insertMenu(act,m_fmctxGoToolMenu);
@@ -544,15 +541,44 @@ void LiteBuild::fmctxGoLockBuild()
     this->lockBuildRootByMimeType(buildPath,"text/x-gosrc");
 }
 
+void LiteBuild::fmctxGoBuildConfigure()
+{
+    QString buildPath = m_fmctxInfo.filePath();
+    //this->lockBuildRootByMimeType(buildPath,"text/x-gosrc");
+
+    LiteApi::IBuild *build = m_buildManager->findBuild("text/x-gosrc");
+    if (!build) {
+        m_liteApp->appendLog("LiteBuild","not found LiteApi::IBuild interface by mime type text/x-gosrc");
+        return;
+    }
+
+    BuildConfigDialog dlg(m_liteApp);
+    dlg.setBuild(build,buildPath, this->liteideEnvMap());
+
+    if (dlg.exec() == QDialog::Accepted) {
+        dlg.saveBuild();
+    }
+}
+
 void LiteBuild::fmctxGoTool()
 {
     QAction *act = (QAction*)sender();
     if (!act) {
         return;
     }
-    // build install test clean
-    QString args = act->data().toString();
+    LiteApi::IBuild *build = m_buildManager->findBuild("text/x-gosrc");
+    if (!build) {
+        m_liteApp->appendLog("litebuild","not found LiteApi::IBuild interface by mime type text/x-gosrc",true);
+        return;
+    }
+
     QString cmd = FileUtil::lookupGoBin("go",m_liteApp,false);
+
+    QString args = act->data().toString();
+    QMap<QString,QString> env = buildEnvMap(build,m_fmctxInfo.filePath());
+    QProcessEnvironment sysenv = LiteApi::getGoEnvironment(m_liteApp);
+    args = this->envToValue(args,env,sysenv);
+
     m_outputRegex = "(\\w?:?[\\w\\d_\\-\\\\/\\.]+):(\\d+):";
     m_process->setUserData(ID_REGEXP,m_outputRegex);
     if (!cmd.isEmpty()) {
@@ -636,7 +662,7 @@ void LiteBuild::currentEnvChanged(LiteApi::IEnv*)
     bool b = m_liteApp->settings()->value(LITEBUILD_ENVCHECK,true).toBool();
     if (!b) {
         return;
-    }
+    }    
 
     QString gobin = FileUtil::lookupGoBin("go",m_liteApp,true);
     if (gobin.isEmpty()) {
@@ -645,7 +671,7 @@ void LiteBuild::currentEnvChanged(LiteApi::IEnv*)
         m_output->append("go bin not found!",Qt::red);
         return;
     }
-    if (!m_process->isStop()) {
+    if (m_process->isStop()) {
         m_output->updateExistsTextColor();
         m_output->appendTag(tr("Current environment change id \"%1\"").arg(ienv->id())+"\n");
         this->execCommand(gobin,"env",LiteApi::getGOROOT(m_liteApp),false,false);
@@ -798,13 +824,27 @@ QMap<QString,QString> LiteBuild::buildEnvMap(LiteApi::IBuild *build, const QStri
     foreach(LiteApi::BuildCustom *cf, build->customList()) {
         QString name = cf->name();
         QString value = cf->value();
+        QString sharedValue = cf->sharedValue();
+        bool hasShared = cf->hasShared();
         if (!customkey.isEmpty()) {
             value = m_liteApp->settings()->value(customkey+"#"+cf->id(),value).toString();
+            hasShared = m_liteApp->settings()->value(customkey+"#"+cf->id()+"#shared",hasShared).toBool();
         }
         QMapIterator<QString,QString> m(env);
         while(m.hasNext()) {
             m.next();
             value.replace("$("+m.key()+")",m.value());
+            if (hasShared) {
+                sharedValue.replace("$("+m.key()+")",m.value());
+            }
+        }
+        if (cf->isEscaped()) {
+            if (value.contains(" ")) {
+                value = "\""+value+"\"";
+            }
+        }
+        if (hasShared && !sharedValue.isEmpty()) {
+            value += " "+sharedValue;
         }
         env.insert(name,value);
     }
@@ -871,35 +911,53 @@ QMap<QString,QString> LiteBuild::buildEnvMap() const
     */
 }
 
-void LiteBuild::updateBuildConfig(IBuild *build)
+void LiteBuild::updateBuildConfigHelp(LiteApi::IBuild *build, const QString &buildRootPath, QStandardItemModel *liteideModel, QStandardItemModel *configModel, QStandardItemModel *customModel, QStandardItemModel *actionModel)
 {
-    m_liteideModel->removeRows(0,m_liteideModel->rowCount());
+    liteideModel->removeRows(0,liteideModel->rowCount());
     QMapIterator<QString,QString> i(this->liteideEnvMap());
     while (i.hasNext()) {
         i.next();
-        m_liteideModel->appendRow(QList<QStandardItem*>()
+        liteideModel->appendRow(QList<QStandardItem*>()
                                  << new QStandardItem(i.key())
                                  << new QStandardItem(i.value()));
     }
     if (build) {
-        m_configModel->removeRows(0,m_configModel->rowCount());
-        m_customModel->removeRows(0,m_customModel->rowCount());
+        configModel->removeRows(0,configModel->rowCount());
+        customModel->removeRows(0,customModel->rowCount());
+        actionModel->removeRows(0,actionModel->rowCount());
         QString customkey;
-        if (!m_buildRootPath.isEmpty()) {
-            customkey = "litebuild-custom/"+m_buildRootPath;
+        if (!buildRootPath.isEmpty()) {
+            customkey = "litebuild-custom/"+buildRootPath;
         }
         QString configkey = "litebuild-config/"+build->id();
         foreach(LiteApi::BuildCustom *cf, build->customList()) {
             QString name = cf->name();
             QString value = cf->value();
+            QString sharedValue = cf->sharedValue();
+            bool sharedChecked = cf->hasShared();
             if (!customkey.isEmpty()) {
                 value = m_liteApp->settings()->value(customkey+"#"+cf->id(),value).toString();
+                sharedChecked = m_liteApp->settings()->value(customkey+"#"+cf->id()+"#shared",true).toBool();
             }
-            QStandardItem *item = new QStandardItem(name);
-            item->setData(cf->id());
-            m_customModel->appendRow(QList<QStandardItem*>()
-                                     << item
-                                     << new QStandardItem(value));
+            QStandardItem *nameItem = new QStandardItem(name);
+            QStandardItem *valueItem = new QStandardItem(value);
+            if (cf->isReadOnly()) {
+                valueItem->setEnabled(false);
+            }
+            QStandardItem *sharedItem = new QStandardItem(sharedValue);
+            sharedItem->setEnabled(cf->hasShared());
+            if (cf->hasShared()) {
+                sharedItem->setCheckable(true);
+                sharedItem->setCheckState(sharedChecked ? Qt::Checked : Qt::Unchecked);
+            }
+            nameItem->setData(cf->id());
+            valueItem->setData(cf->value());
+            sharedItem->setData(cf->hasShared());
+            customModel->appendRow(QList<QStandardItem*>()
+                                     << nameItem
+                                     << valueItem
+                                     << sharedItem );
+
         }
         foreach(LiteApi::BuildConfig *cf, build->configList()) {
             QString name = cf->name();
@@ -909,11 +967,25 @@ void LiteBuild::updateBuildConfig(IBuild *build)
             }
             QStandardItem *item = new QStandardItem(name);
             item->setData(cf->id());
-            m_configModel->appendRow(QList<QStandardItem*>()
+            configModel->appendRow(QList<QStandardItem*>()
                                      << item
                                      << new QStandardItem(value));
         }
+        foreach (LiteApi::BuildAction *ba, build->actionList()) {
+            QString id = ba->id();
+            QString cmd = ba->cmd();
+            QString args = ba->args();
+            QStandardItem *item = new QStandardItem(id);
+            actionModel->appendRow(QList<QStandardItem*>()
+                                   << item
+                                   << new QStandardItem(cmd)
+                                   << new QStandardItem(args));
+        }
     }
+}
+
+void LiteBuild::updateBuildConfig(IBuild */*build*/)
+{
 }
 
 void LiteBuild::setCurrentBuild(LiteApi::IBuild *build)
@@ -1359,7 +1431,8 @@ void LiteBuild::execCommand(const QString &cmd1, const QString &args, const QStr
         m_output->append(tr("A process is currently running.  Stop the current action first.")+"\n",Qt::red);
         return;
     }
-    QProcessEnvironment sysenv = LiteApi::getGoEnvironment(m_liteApp);
+    //QProcessEnvironment sysenv = LiteApi::getGoEnvironment(m_liteApp);
+    QProcessEnvironment sysenv = LiteApi::getCustomGoEnvironment(m_liteApp,workDir);
     QString cmd = cmd1.trimmed();
     m_output->setReadOnly(false);
     m_process->setEnvironment(sysenv.toStringList());
@@ -1382,13 +1455,17 @@ void LiteBuild::execCommand(const QString &cmd1, const QString &args, const QStr
                          .arg(cmd).arg(args).arg(workDir));
 #ifdef Q_OS_WIN
     m_process->setNativeArguments(args);
-    if (cmd.indexOf(" ")) {
+    if (cmd.contains(" ")) {
         m_process->start("\""+cmd+"\"");
     } else {
         m_process->start(cmd);
     }
 #else
-    m_process->start(cmd+" "+args);
+    if (cmd.contains(" ")) {
+        m_process->start("\""+cmd+"\"");
+    } else {
+        m_process->start(cmd+" "+args);
+    }
 #endif
 }
 
@@ -1436,6 +1513,51 @@ void LiteBuild::buildAction(LiteApi::IBuild* build,LiteApi::BuildAction* ba)
     }
 }
 
+void LiteBuild::buildTask(IBuild *build, bool killOld, const QStringList &taskList)
+{
+    if (m_bOutputAutoClear) {
+        m_output->clear();
+    } else {
+        m_output->updateExistsTextColor(true);
+    }
+    m_outputAct->setChecked(true);
+
+    if (!m_process->isStop()) {
+        if (!killOld) {
+            return;
+        }
+        m_process->stop(100);
+    }
+
+    QString mime = build->mimeType();
+    QString editor;
+    LiteApi::IEditor *ed = m_liteApp->editorManager()->currentEditor();
+    if (ed) {
+        editor = ed->filePath();
+    }
+
+    m_output->updateExistsTextColor();
+    m_process->setUserData(ID_MIMETYPE,mime);
+    m_process->setUserData(ID_EDITOR,editor);
+    m_process->setUserData(ID_ACTIVATEOUTPUT_CHECK,true);
+
+    QStringList task;
+    foreach (QString id, taskList) {
+        LiteApi::BuildAction *ba = build->findAction(id);
+        if (!ba) {
+            continue;
+        }
+        if (!ba->task().isEmpty()) {
+            task.append(ba->task());
+        } else if (!ba->cmd().isEmpty()) {
+            task.push_back(ba->id());
+        }
+    }
+    QString id = task.takeFirst();
+    m_process->setUserData(ID_TASKLIST,task);
+    execAction(mime,id);
+}
+
 void LiteBuild::execAction(const QString &mime, const QString &id)
 {
     if (!m_process->isStop()) {
@@ -1477,7 +1599,8 @@ void LiteBuild::execAction(const QString &mime, const QString &id)
 
     QMap<QString,QString> env = buildEnvMap(build,buildFilePath);
 
-    QProcessEnvironment sysenv = LiteApi::getGoEnvironment(m_liteApp);
+    //QProcessEnvironment sysenv = LiteApi::getGoEnvironment(m_liteApp);
+    QProcessEnvironment sysenv = LiteApi::getCustomGoEnvironment(m_liteApp,buildFilePath);
 
     QString cmd = this->envToValue(ba->cmd(),env,sysenv);
     QString args = this->envToValue(ba->args(),env,sysenv);
@@ -1498,6 +1621,9 @@ void LiteBuild::execAction(const QString &mime, const QString &id)
     if (ba->cmd() == "$(GO)") {
         shell = FileUtil::lookupGoBin(cmd,m_liteApp,false);
     } else {
+        if (cmd.startsWith("\"") && cmd.endsWith("\"")) {
+            cmd = cmd.mid(1,cmd.length()-2).trimmed();
+        }
         shell = FileUtil::lookPathInDir(cmd,m_workDir);
     }
     if (shell.isEmpty()) {
@@ -1569,10 +1695,18 @@ void LiteBuild::execAction(const QString &mime, const QString &id)
                             .arg(args)
                             .arg(m_workDir));
 #ifdef Q_OS_WIN
-        m_process->setNativeArguments(args);
+    m_process->setNativeArguments(args);
+    if (cmd.contains(" ")) {
         m_process->start("\""+cmd+"\"");
+    } else {
+        m_process->start(cmd);
+    }
 #else
-        m_process->start(cmd + " " + args);
+    if (cmd.contains(" ")) {
+        m_process->start("\""+cmd+"\"");
+    } else {
+        m_process->start(cmd+" "+args);
+    }
 #endif
     }
 }

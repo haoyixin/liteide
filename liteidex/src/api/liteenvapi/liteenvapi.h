@@ -21,8 +21,8 @@
 // Module: liteenvapi.h
 // Creator: visualfc <visualfc@gmail.com>
 
-#ifndef __LITEENVAPI_H__
-#define __LITEENVAPI_H__
+#ifndef LITEENVAPI_H
+#define LITEENVAPI_H
 
 #include "liteapi/liteapi.h"
 #include <QProcessEnvironment>
@@ -186,6 +186,14 @@ inline QProcessEnvironment getGoEnvironment(LiteApi::IApplication *app)
     if (goos.isEmpty()) {
         goos = getDefaultGOOS();
     }
+    if (!env.contains("GOEXE")) {
+        QString goexe;
+        if (goos == "windows") {
+            goexe = ".exe";
+        }
+        env.insert("GOEXE",goexe);
+    }
+
     QString goarch = env.value("GOARCH");
     QString goroot = env.value("GOROOT");
     if (goroot.isEmpty()) {
@@ -252,9 +260,110 @@ inline QString getGOROOT(LiteApi::IApplication *app)
     return getGoEnvironment(app).value("GOROOT");
 }
 
+inline QProcessEnvironment getCustomGoEnvironment(LiteApi::IApplication *app, const QString &buildFilePath)
+{
+    if (buildFilePath.isEmpty()) {
+        return getGoEnvironment(app);
+    }
+    QString customKey = "litebuild-custom/"+buildFilePath;
+    bool use_custom_gopath = app->settings()->value(customKey+"#use_custom_gopath",false).toBool();
+    if (!use_custom_gopath) {
+        return getGoEnvironment(app);
+    }
+
+    QProcessEnvironment env = getCurrentEnvironment(app);
+#ifdef Q_OS_WIN
+    QString sep = ";";
+#else
+    QString sep = ":";
+#endif
+
+    IEnvManager *mgr = LiteApi::getEnvManager(app);
+    if (mgr) {
+        LiteApi::IEnv *ce = mgr->currentEnv();
+        if (ce) {
+            QMapIterator<QString,QString> i(ce->goEnvMap());
+            while(i.hasNext()) {
+                i.next();
+                env.insert(i.key(),i.value());
+            }
+        }
+    }
+
+    QString goos = env.value("GOOS");
+    if (goos.isEmpty()) {
+        goos = getDefaultGOOS();
+    }
+    if (!env.contains("GOEXE")) {
+        QString goexe;
+        if (goos == "windows") {
+            goexe = ".exe";
+        }
+        env.insert("GOEXE",goexe);
+    }
+
+    QString goarch = env.value("GOARCH");
+    QString goroot = env.value("GOROOT");
+    if (goroot.isEmpty()) {
+        goroot = getDefaultGOROOT();
+    }
+
+    QStringList pathList;
+
+    bool inherit_sys_gopath = app->settings()->value(customKey+"#inherit_sys_gopath",true).toBool();
+    bool inherit_lite_gopath = app->settings()->value(customKey+"#inherit_lite_gopath",true).toBool();
+    bool custom_gopath = app->settings()->value(customKey+"#custom_gopath",false).toBool();
+
+    if (inherit_sys_gopath) {
+        foreach (QString path, env.value("GOPATH").split(sep,QString::SkipEmptyParts)) {
+            pathList.append(QDir::toNativeSeparators(path));
+        }
+    }
+    if (inherit_lite_gopath) {
+        foreach (QString path, app->settings()->value("liteide/gopath").toStringList()) {
+            pathList.append(QDir::toNativeSeparators(path));
+        }
+    }
+    if (custom_gopath) {
+        foreach (QString path, app->settings()->value(customKey+"#gopath").toStringList()) {
+            pathList.append(QDir::toNativeSeparators(path));
+        }
+    }
+    pathList.removeDuplicates();
+    env.insert("GOPATH",pathList.join(sep));
+
+    if (!goroot.isEmpty()) {
+        pathList.prepend(goroot);
+    }
+
+    QStringList binList;
+    QString gobin = env.value("GOBIN");
+    if (!gobin.isEmpty()) {
+        binList.append(gobin);
+    }
+    foreach (QString path, pathList) {
+        binList.append(QFileInfo(path,"bin").filePath());
+        binList.append(QFileInfo(path,"bin/"+goos+"_"+goarch).filePath());
+    }
+    env.insert("PATH",env.value("PATH")+sep+binList.join(sep)+sep);
+    return env;
+}
+
+inline QProcessEnvironment getCustomGoEnvironment(LiteApi::IApplication *app, LiteApi::IEditor *editor)
+{
+    QString buildFilePath;
+    if (editor) {
+        QString filePath = editor->filePath();
+        if (!filePath.isEmpty()) {
+            buildFilePath = QFileInfo(filePath).path();
+        }
+    }
+    return getCustomGoEnvironment(app,buildFilePath);
+}
+
 
 } //namespace LiteApi
 
 
-#endif //__LITEENVAPI_H__
+#endif //LITEENVAPI_H
 
